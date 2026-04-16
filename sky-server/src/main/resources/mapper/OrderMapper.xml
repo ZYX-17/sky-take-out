@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.OrderMapper">
+    <insert id="insert" parameterType="Orders" useGeneratedKeys="true" keyProperty="id">
+        insert into orders
+        (number, status, user_id, address_book_id, order_time, checkout_time, pay_method, pay_status, amount, remark,
+         phone, address, consignee, estimated_delivery_time, delivery_status, pack_amount, tableware_number,
+         tableware_status)
+        values (#{number}, #{status}, #{userId}, #{addressBookId}, #{orderTime}, #{checkoutTime}, #{payMethod},
+                #{payStatus}, #{amount}, #{remark}, #{phone}, #{address}, #{consignee},
+                #{estimatedDeliveryTime}, #{deliveryStatus}, #{packAmount}, #{tablewareNumber}, #{tablewareStatus})
+    </insert>
+    <update id="update" parameterType="com.sky.entity.Orders">
+        update orders
+        <set>
+            <if test="cancelReason != null and cancelReason!='' ">
+                cancel_reason=#{cancelReason},
+            </if>
+            <if test="rejectionReason != null and rejectionReason!='' ">
+                rejection_reason=#{rejectionReason},
+            </if>
+            <if test="cancelTime != null">
+                cancel_time=#{cancelTime},
+            </if>
+            <if test="payStatus != null">
+                pay_status=#{payStatus},
+            </if>
+            <if test="payMethod != null">
+                pay_method=#{payMethod},
+            </if>
+            <if test="checkoutTime != null">
+                checkout_time=#{checkoutTime},
+            </if>
+            <if test="status != null">
+                status = #{status},
+            </if>
+            <if test="deliveryTime != null">
+                delivery_time = #{deliveryTime}
+            </if>
+        </set>
+        where id = #{id}
+    </update>
+    <select id="conditionSearch" resultType="com.sky.vo.OrderVO">
+        SELECT
+        o.*,
+        GROUP_CONCAT(od.`name` SEPARATOR ',') AS orderDishes
+        FROM
+        orders o
+        LEFT JOIN order_detail od ON o.id = od.order_id
+        <where>
+            <if test="beginTime != null and endTime != null">
+                and o.order_time between #{beginTime} and #{endTime}
+            </if>
+            <if test="phone != null and phone != ''">
+                AND o.phone LIKE CONCAT('%', #{phone}, '%')
+            </if>
+            <if test="status != null and status != ''">
+                AND o.status = #{status}
+            </if>
+            <if test="number != null and number != ''">
+                AND o.number LIKE CONCAT('%', #{number}, '%')
+            </if>
+        </where>
+        GROUP BY o.id, o.order_time
+        ORDER BY o.order_time DESC
+    </select>
+    <!-- 订单详情查询：映射 OrderVO + 嵌套 OrderDetailList -->
+    <select id="details" resultMap="OrderDetailResultMap">
+        SELECT
+            -- 订单主表（orders）所有字段（用别名避免与明细字段冲突）
+            o.id AS order_id,
+            o.number,
+            o.status,
+            o.user_id AS order_user_id,
+            o.address_book_id AS order_address_book_id,
+            o.order_time,
+            o.checkout_time,
+            o.pay_method,
+            o.pay_status,
+            o.amount AS order_amount,
+            o.remark,
+            o.user_name,
+            o.phone,
+            o.address,
+            o.consignee,
+            o.cancel_reason,
+            o.rejection_reason,
+            o.cancel_time,
+            o.estimated_delivery_time,
+            o.delivery_status,
+            o.delivery_time,
+            o.pack_amount,
+            o.tableware_number,
+            o.tableware_status,
+
+            -- 订单明细表（order_detail）所有字段（明细一条记录对应一个对象）
+            od.id AS detail_id,
+            od.name AS detail_name,
+            od.dish_id AS detail_dish_id,
+            od.setmeal_id AS detail_setmeal_id,
+            od.dish_flavor AS detail_dish_flavor,
+            od.number AS detail_number,
+            od.amount AS detail_amount,
+            od.image AS detail_image,
+            od.order_id AS detail_order_id
+        FROM
+            orders o
+                LEFT JOIN order_detail od ON o.id = od.order_id
+        WHERE o.id = #{id} -- 按订单ID查询单条详情
+    </select>
+    <select id="serchhistory" resultMap="OrderDetailResultMap">
+        SELECT
+            -- 订单主表（orders）所有字段（用别名避免与明细字段冲突）
+            o.id AS order_id,
+            o.number,
+            o.status,
+            o.user_id AS order_user_id,
+            o.address_book_id AS order_address_book_id,
+            o.order_time,
+            o.checkout_time,
+            o.pay_method,
+            o.pay_status,
+            o.amount AS order_amount,
+            o.remark,
+            o.user_name,
+            o.phone,
+            o.address,
+            o.consignee,
+            o.cancel_reason,
+            o.rejection_reason,
+            o.cancel_time,
+            o.estimated_delivery_time,
+            o.delivery_status,
+            o.delivery_time,
+            o.pack_amount,
+            o.tableware_number,
+            o.tableware_status,
+
+            -- 订单明细表（order_detail）所有字段（明细一条记录对应一个对象）
+            od.id AS detail_id,
+            od.name AS detail_name,
+            od.dish_id AS detail_dish_id,
+            od.setmeal_id AS detail_setmeal_id,
+            od.dish_flavor AS detail_dish_flavor,
+            od.number AS detail_number,
+            od.amount AS detail_amount,
+            od.image AS detail_image,
+            od.order_id AS detail_order_id
+        FROM
+            orders o
+                LEFT JOIN order_detail od ON o.id = od.order_id
+        <where>
+            <if test="status != null">
+                AND o.status = #{status}
+            </if>
+            <if test="userId != null">
+                and user_id = #{userId}
+            </if>
+        </where>
+        ORDER BY o.order_time DESC
+    </select>
+
+
+    <!-- 核心：ResultMap 配置（主表 + 嵌套明细列表） -->
+    <resultMap id="OrderDetailResultMap" type="com.sky.vo.OrderVO">
+        <!-- 一、映射订单主表字段（与 JSON 响应字段一一对应） -->
+        <id property="id" column="order_id"/> <!-- 订单主键 -->
+        <result property="number" column="number"/> <!-- 订单号 -->
+        <result property="status" column="status"/> <!-- 订单状态 -->
+        <result property="userId" column="order_user_id"/> <!-- 用户ID -->
+        <result property="addressBookId" column="order_address_book_id"/> <!-- 地址簿ID -->
+        <result property="orderTime" column="order_time"/> <!-- 下单时间 -->
+        <result property="checkoutTime" column="checkout_time"/> <!-- 结算时间 -->
+        <result property="payMethod" column="pay_method"/> <!-- 支付方式 -->
+        <result property="payStatus" column="pay_status"/> <!-- 支付状态 -->
+        <result property="amount" column="order_amount"/> <!-- 订单总金额 -->
+        <result property="remark" column="remark"/> <!-- 备注 -->
+        <result property="userName" column="user_name"/> <!-- 用户名 -->
+        <result property="phone" column="phone"/> <!-- 手机号 -->
+        <result property="address" column="address"/> <!-- 收货地址 -->
+        <result property="consignee" column="consignee"/> <!-- 收货人 -->
+        <result property="cancelReason" column="cancel_reason"/> <!-- 取消原因 -->
+        <result property="rejectionReason" column="rejection_reason"/> <!-- 拒绝原因 -->
+        <result property="cancelTime" column="cancel_time"/> <!-- 取消时间 -->
+        <result property="estimatedDeliveryTime" column="estimated_delivery_time"/> <!-- 预计送达时间 -->
+        <result property="deliveryStatus" column="delivery_status"/> <!-- 配送状态 -->
+        <result property="deliveryTime" column="delivery_time"/> <!-- 送达时间 -->
+        <result property="packAmount" column="pack_amount"/> <!-- 打包费 -->
+        <result property="tablewareNumber" column="tableware_number"/> <!-- 餐具数量 -->
+        <result property="tablewareStatus" column="tableware_status"/> <!-- 餐具状态 -->
+        <result property="orderDishes" column="orderDishes"/> <!-- 菜品名称拼接 -->
+
+        <!-- 二、映射嵌套明细列表 orderDetailList（List<OrderDetail> 类型） -->
+        <collection
+                property="orderDetailList"
+                ofType="com.sky.entity.OrderDetail"
+                autoMapping="false">
+            <id property="id" column="detail_id"/>
+            <result property="name" column="detail_name"/>
+            <result property="dishId" column="detail_dish_id"/>
+            <result property="setmealId" column="detail_setmeal_id"/>
+            <result property="dishFlavor" column="detail_dish_flavor"/>
+            <result property="number" column="detail_number"/>
+            <result property="amount" column="detail_amount"/>
+            <result property="image" column="detail_image"/>
+            <result property="orderId" column="detail_order_id"/>
+        </collection>
+    </resultMap>
+
+    <select id="sumByMap" resultType="java.lang.Double">
+        select sum(amount) from orders
+        <where>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+            <if test="begin != null">
+                and order_time &gt;= #{begin}
+            </if>
+            <if test="end != null">
+                and order_time &lt;= #{end}
+            </if>
+        </where>    </select>
+
+    <select id="countByMap" resultType="java.lang.Integer">
+        select count(id) from orders
+        <where>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+            <if test="begin != null">
+                and order_time &gt;= #{begin}
+            </if>
+            <if test="end != null">
+                and order_time &lt;= #{end}
+            </if>
+        </where>
+    </select>
+
+    <select id="getSalesTop10" resultType="com.sky.dto.GoodsSalesDTO">
+        select od.name name,sum(od.number) number from order_detail od ,orders o
+        where od.order_id = o.id
+        and o.status = 5
+        <if test="begin != null">
+            and order_time &gt;= #{begin}
+        </if>
+        <if test="end != null">
+            and order_time &lt;= #{end}
+        </if>
+        group by name
+        order by number desc
+        limit 0, 10
+    </select>
+
+
+</mapper>

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.SetmealMapper">
+
+
+
+    <insert id="add" useGeneratedKeys="true" keyProperty="id">
+        insert into setmeal (name, category_id, price, status, create_time, update_time, create_user, update_user, image, description)
+        values (#{name}, #{categoryId}, #{price}, #{status}, #{createTime}, #{updateTime}, #{createUser}, #{updateUser}, #{image}, #{description})
+    </insert>
+
+
+    <select id="pageQuery" resultType="com.sky.vo.SetmealVO">
+        <!-- 明确查询字段，避免setmeal.name和category.name冲突，给category.name起别名 -->
+        select
+        s.*, c.name as categoryName  <!-- c.name 是分类名称，起别名categoryName -->
+        from setmeal s
+        <!-- LEFT JOIN 关联分类表，关联条件：套餐的分类ID = 分类表的ID -->
+        left join category c on s.category_id = c.id
+        <where>
+            <if test="name != null and name != ''">
+                and s.name like concat('%',#{name},'%')  <!-- 加表别名s，避免字段歧义 -->
+            </if>
+            <if test="categoryId != null">
+                and s.category_id = #{categoryId}
+            </if>
+            <if test="status != null">
+                and s.status = #{status}
+            </if>
+        </where>
+        order by s.update_time desc  <!-- 加表别名s -->
+    </select>
+
+    <delete id="deleteBatch">
+        delete from setmeal where id in
+        <foreach item="id" collection="ids" separator="," open="(" close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <!-- 定义套餐VO的ResultMap：一对多关联菜品 -->
+    <resultMap id="SetmealVOResultMap" type="com.sky.vo.SetmealVO">
+        <!-- 套餐表字段映射：使用SQL中的s_前缀别名 -->
+        <id column="s_id" property="id"/> <!-- 主键字段必须用id标签，用于MyBatis分组 -->
+        <result column="s_name" property="name"/>
+        <result column="s_category_id" property="categoryId"/>
+        <result column="s_price" property="price"/>
+        <result column="s_status" property="status"/>
+        <result column="s_description" property="description"/>
+        <result column="s_image" property="image"/>
+        <result column="s_update_time" property="updateTime"/>
+        <result column="category_name" property="categoryName"/> <!-- 修复拼写错误 -->
+
+        <!-- 一对多关联菜品列表：使用SQL中的c_前缀别名 -->
+        <collection property="setmealDishes" ofType="com.sky.entity.SetmealDish">
+            <id column="c_id" property="id"/> <!-- 菜品关联表的主键 -->
+            <result column="c_setmeal_id" property="setmealId"/>
+            <result column="c_dish_id" property="dishId"/>
+            <result column="c_name" property="name"/>
+            <result column="c_price" property="price"/>
+            <result column="c_copies" property="copies"/>
+        </collection>
+    </resultMap>
+
+    <select id="getById" resultMap="SetmealVOResultMap">
+        select
+            s.id as s_id,
+            s.name as s_name,
+            s.category_id as s_category_id,
+            s.price as s_price,
+            s.status as s_status,
+            s.description as s_description,
+            s.image as s_image,
+            s.update_time as s_update_time,
+            c.id as c_id,
+            c.setmeal_id as c_setmeal_id,
+            c.dish_id as c_dish_id,
+            c.name as c_name,
+            c.price as c_price,
+            c.copies as c_copies,
+            cat.name as category_name -- 关联分类表获取分类名称
+        from setmeal s
+                 left join setmeal_dish c on s.id = c.setmeal_id
+                 left join category cat on s.category_id = cat.id -- 关联分类表
+        where s.id = #{id}
+    </select>
+
+
+    <update id="update">
+        update setmeal
+        <set>
+            <if test="name != null">
+                name = #{name},
+            </if>
+            <if test="categoryId != null">
+                category_id = #{categoryId},
+            </if>
+            <if test="price != null">
+                price = #{price},
+            </if>
+            <if test="status != null">
+                status = #{status},
+            </if>
+            <if test="image != null">
+                image = #{image},
+            </if>
+            <if test="description != null">
+                description = #{description},
+            </if>
+            update_time = #{updateTime},
+            update_user = #{updateUser}
+        </set>
+
+        where id = #{id}
+    </update>
+
+    <select id="list" parameterType="Setmeal" resultType="Setmeal">
+        select * from setmeal
+        <where>
+            <if test="name != null">
+                and name like concat('%',#{name},'%')
+            </if>
+            <if test="categoryId != null">
+                and category_id = #{categoryId}
+            </if>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+        </where>
+    </select>
+
+
+    <select id="countByMap" resultType="java.lang.Integer">
+        select count(id) from setmeal
+        <where>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+            <if test="categoryId != null">
+                and category_id = #{categoryId}
+            </if>
+        </where>
+    </select>
+</mapper>
